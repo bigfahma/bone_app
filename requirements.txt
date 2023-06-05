@@ -1,0 +1,10 @@
+itk==5.3.0
+itk_thickness3d==5.3.0
+itkwidgets==0.32.6
+numpy==1.23.3
+opencv_python_headless==4.5.4.60
+Pillow==9.5.0
+pyvista==0.38.5
+SimpleITK==2.2.1
+tqdm==4.64.1
+vtk==9.2.6
