@@ -8,3 +8,4 @@ pyvista==0.38.5
 SimpleITK==2.2.1
 tqdm==4.64.1
 vtk==9.2.6
+PyQt5
