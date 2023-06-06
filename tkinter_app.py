@@ -13,6 +13,7 @@ from tqdm import tqdm
 import cv2
 import os
 from pathlib import Path
+import threading
 
 
 pyvista.global_theme.transparent_background = True
@@ -26,7 +27,8 @@ def sitk_snap_ext(image):
 
 
 def read_bmp_directory_itkimage(bmp_directory, resize_shape = None, start = 500, finish = 3500,resize = False, threshold = False):
-    
+    if bmp_directory == '':
+        return None
     images = [f for f in sorted(os.listdir(bmp_directory), key=lambda x: int(x.split('_')[1].split('.')[0])) if f.endswith("bmp")]
     volume_np = []
     print(len(images))
@@ -94,8 +96,12 @@ class ITKVolumeApp:
         loaded = tk.Label(self.root, text = "Volume loaded successfully !")
         loaded.place(x=50, y = 50)
         loaded.pack()
-        time.sleep(5)
         loaded.destroy()
+
+        if len(np.unique(sitk.GetArrayFromImage(self.volume)[0])) > 3:
+            print("NOT SEGMENTED PROPERLY")
+            loaded = tk.Label(self.root, text = " Can't separate :  Not segmented")
+            loaded.place(x=20, y = 10)
 
         self.scale_min_var = tk.DoubleVar()
         self.scale_min_var.set(1)
@@ -140,6 +146,9 @@ class ITKVolumeApp:
 
         return sitk.GetImageFromArray(extracted_volume)
 
+    def load_volume_dicom_in_background(self):
+        thread = threading.Thread(target=self.load_volume_dicom)
+        thread.start()
     def load_volume(self):
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="red", outline="#DDD", width=4)
 
@@ -162,6 +171,12 @@ class ITKVolumeApp:
             else : 
                 self.volume_pv = pyvista.get_reader(self.file_path)
             print("Volume loaded successfully.")
+
+
+            if len(np.unique(sitk.GetArrayFromImage(self.volume)[0])) > 3:
+                print("NOT SEGMENTED PROPERLY")
+                loaded = tk.Label(self.root, text = " Can't separate :  Not segmented")
+                loaded.place(x=20, y = 10)
 
             self.scale_min_var = tk.DoubleVar()
             self.scale_min_var.set(1)
@@ -194,12 +209,11 @@ class ITKVolumeApp:
             self.slider_min.pack()
             self.slider_max.pack()
 
-        if len(np.unique(sitk.GetArrayFromImage(self.volume))) > 3:
-            print("NOT SEGMENTED PROPERLY")
-            loaded = tk.Label(self.root, text = " Can't separate :  Not segmented")
-            loaded.place(x=20, y = 10)
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="green", outline="#DDD", width=4)
 
+    def load_volume_in_background(self):
+        thread = threading.Thread(target=self.load_volume)
+        thread.start()
     def slice_volume(self):
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="red", outline="#DDD", width=4)
 
@@ -214,14 +228,17 @@ class ITKVolumeApp:
 
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="green", outline="#DDD", width=4)
 
-
+    def slice_volume_in_background(self):
+        thread = threading.Thread(target=self.slice_volume)
+        thread.start()
     def show_viewer(self):
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="red", outline="#DDD", width=4)
-        time.sleep(1)
+
         if self.volume is not None:
             print("Slicing : choose boundaries")
 
             self.volume = itk.imread(self.output_path_slice)
+            self.volume = self.itk2sitk(self.volume)
             if self.file_path.endswith("nii.gz") or self.file_path.endswith(".nii"):
                 print("Nifti File")
                 class NIFTIReader(pyvista.BaseReader):
@@ -243,15 +260,18 @@ class ITKVolumeApp:
         else:
             print("No volume loaded.")
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="green", outline="#DDD", width=4)
-
+    def show_viewer_in_background(self):
+        thread = threading.Thread(target=self.show_viewer)
+        thread.start()
     def view_snap(self):
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="red", outline="#DDD", width=4)
-
         print("Snapping")
         if self.volume is not None:
             sitk_snap_ext(self.volume)
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="green", outline="#DDD", width=4)
-
+    def view_snap_in_background(self):
+        thread = threading.Thread(target=self.view_snap)
+        thread.start()
     def show_cortical(self):
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="red", outline="#DDD", width=4)
         print("Showing cortical")
@@ -263,7 +283,9 @@ class ITKVolumeApp:
         p.show()   
         sitk_snap_ext(self.cortical_compartiment_mask)
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="green", outline="#DDD", width=4)
-
+    def show_cortical_in_background(self):
+        thread = threading.Thread(target=self.show_cortical)
+        thread.start()
 
     def show_trabecular(self):
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="red", outline="#DDD", width=4)
@@ -277,7 +299,9 @@ class ITKVolumeApp:
         sitk_snap_ext(self.trabecular_compartiment_mask)
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="green", outline="#DDD", width=4)
 
-
+    def show_trabecular_in_background(self):
+        thread = threading.Thread(target=self.show_trabecular)
+        thread.start()
     def separate_bones(self):
 
         print("Separating")
@@ -288,12 +312,11 @@ class ITKVolumeApp:
         loaded = tk.Label(self.root, text = "Bones separated successfully !")
         loaded.place(x=250, y = 150)
         loaded.pack()
-        time.sleep(5)
         loaded.destroy()
 
-        r1 = Button(self.root, text="Cortical mask", command = self.show_cortical)
+        r1 = Button(self.root, text="Cortical mask", command = self.show_cortical_in_background)
 
-        r2 = Button(self.root, text="Trabecular mask", command = self.show_trabecular)
+        r2 = Button(self.root, text="Trabecular mask", command = self.show_trabecular_in_background)
         if self.sep !=0:
             r1.destroy()
             r2.destroy()
@@ -309,7 +332,10 @@ class ITKVolumeApp:
         )
         self.sep = 1
         self.canvas.create_circle(x = 10, y = 10, r = 10, fill="green", outline="#DDD", width=4)
-
+    
+    def separate_bones_in_background(self):
+        thread = threading.Thread(target=self.separate_bones)
+        thread.start()
 
     def get_info_volume(self):
         print("Get info volume")
@@ -322,6 +348,9 @@ class ITKVolumeApp:
         #save comment + bone_name + path + slice number + validation
         return None
 
+    def reset(self):
+        self.canvas.destroy()
+        self.create_widgets()
 
     def create_widgets(self):
         OUTPUT_PATH = Path(__file__).parent
@@ -369,7 +398,7 @@ class ITKVolumeApp:
             image=self.button_image_2,
             borderwidth=0,
             highlightthickness=0,
-            command=self.show_viewer,
+            command=self.show_viewer_in_background,
             relief="flat"
         )
         self.button_2.place(
@@ -385,7 +414,7 @@ class ITKVolumeApp:
             image=self.button_image_3,
             borderwidth=0,
             highlightthickness=0,
-            command=self.separate_bones,
+            command=self.separate_bones_in_background,
             relief="flat"
         )
         self.button_3.place(
@@ -401,7 +430,7 @@ class ITKVolumeApp:
             image=self.button_image_4,
             borderwidth=0,
             highlightthickness=0,
-            command=self.view_snap,
+            command=self.view_snap_in_background,
             relief="flat"
         )
         self.button_4.place(
@@ -411,13 +440,14 @@ class ITKVolumeApp:
             height=76.0
         )
 
+
         self.button_image_5 = PhotoImage(
             file=relative_to_assets("button_5.png"))
         self.button_5 = Button(
             image=self.button_image_5,
             borderwidth=0,
             highlightthickness=0,
-            command= self.slice_volume, #TODO
+            command= self.slice_volume_in_background, #TODO
             relief="flat"
         )
         self.button_5.place(
@@ -433,7 +463,7 @@ class ITKVolumeApp:
             image=self.button_image_6,
             borderwidth=0,
             highlightthickness=0,
-            command=self.load_volume,
+            command=self.load_volume_in_background,
             relief="flat"
         )
         self.button_6.place(
@@ -442,7 +472,19 @@ class ITKVolumeApp:
             width=175.0,
             height=76.0
         )
-
+        self.button_7 = Button(
+            text = "Reset",
+            borderwidth=0,
+            highlightthickness=0,
+            command=self.reset,
+            relief="flat"
+        )
+        self.button_7.place(
+            x=20.0,
+            y=20.0,
+            width=30.0,
+            height=30.0
+        )
         self.canvas.create_text(
             246.0,
             8.0,
